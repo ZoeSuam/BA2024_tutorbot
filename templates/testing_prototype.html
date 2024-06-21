@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        header {
+            background-color: #33892D;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            width: 100%;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .instruction {
+            font-size: 18px;
+            margin-top: 10px;
+            color: white;
+        }
+        main {
+            flex: 1;
+            padding: 20px;
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+        .chatbot-container {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+            position: relative;
+        }
+        .arrow {
+    margin-top: 20px;
+    text-align: center;
+    position: absolute;
+    bottom: 10px; /* Reduziert, um den Pfeil weiter nach unten zu verschieben */
+    right: 400px; /* Beibehaltung des Werts, um den Pfeil nach rechts zu positionieren */
+}
+
+        .arrow img {
+            width: 50px;
+            height: auto;
+        }
+        .arrow-text {
+            font-size: 16px;
+            color: #33892D;
+            margin-top: 5px;
+        }
+        footer {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            width: 100%;
+            position: fixed;
+            bottom: 0;
+        }
+        a {
+            color: #33892D;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Willkommen zum Chatbot Prototyp</h1>
+        <p class="instruction">Um den Chatbot zu verwenden, klicken Sie auf das Icon unten rechts.</p>
+    </header>
+    <main>
+        <div class="chatbot-container">
+            <h2>Über diesen Chatbot</h2>
+            <p>Dieser Chatbot ist Teil eines Moodle EBC*L Kurses und dient als tutorielle Unterstützung in diesem Kurs. Die Kursteilnehmer können Fragen zu Lerninhalten stellen oder ihren Wissenstand zum Thema prüfen lassen.</p>
+            <p>Der Chatbot wurde mit Voiceflow umgesetzt und das Backend in Python entwickelt und über PythonAnywhere gehostet. Die Assistance API von OpenAI wurde genutzt, um die Leistungsfähigkeit des Large Language Models (LLM) zu integrieren.</p>
+            <p>Der Quellcode des Backends ist auf <a href="https://github.com/ZoeSuam/DigleduBA/tree/master" target="_blank">GitHub</a> verfügbar.</p>
+            <!-- Voiceflow Widget -->
+            <div id="voiceflow-chatbot"></div>
+            <script type="text/javascript">
+                (function(d, t) {
+                    var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
+                    v.onload = function() {
+                        window.voiceflow.chat.load({
+                            verify: { projectID: '661d22e79993e7b4333da538' },
+                            url: 'https://general-runtime.voiceflow.com',
+                            versionID: 'production'
+                        }).then(function(chat) {
+                            chat.open();  // Automatically open the chat
+                        });
+                    };
+                    v.src = "https://cdn.voiceflow.com/widget/bundle.mjs";
+                    v.type = "text/javascript";
+                    s.parentNode.insertBefore(v, s);
+                })(document, 'script');
+            </script>
+            <!-- Ende Voiceflow Widget -->
+
+
+    </main>
+    <footer>
+        <p>&copy; 2024 Zoe Maus. Alle Rechte vorbehalten.</p>
+    </footer>
+</body>
+</html>
