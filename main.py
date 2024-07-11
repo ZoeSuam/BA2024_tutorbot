@@ -12,8 +12,6 @@ import instructions
 
 
 
-
-# Check OpenAI version is correct
 required_version = version.parse("1.1.1")
 
 current_version = version.parse(openai.__version__)
@@ -87,13 +85,13 @@ def chat():
             logging.error("Error: Missing thread_id or lesson_choice")
             return jsonify({"error": "Missing thread_id or lesson_choice"}), 400
 
-        # Get the file ID for the selected lesson
+        # Get ID for lesson-choice
         file_id = lesson_file_map.get(lesson_choice)
         if not file_id:
             logging.error(f"No document found for lesson {lesson_choice}")
             return jsonify({"error": "Document not found"}), 404
 
-        # Add the user's message to the thread and attach the file
+        # Add the user's message to the thread 
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
@@ -121,7 +119,7 @@ def chat():
                 return jsonify({"error": "Assistant run failed"}), 500
             time.sleep(1)
 
-        # Retrieve and return the latest message from the assistant
+        # Retrieve and return the latest message 
         messages = client.beta.threads.messages.list(thread_id=thread_id)
         response = messages.data[0].content[-1].text.value
         return jsonify({"response": response})
@@ -148,7 +146,7 @@ def chatFT():
             content=user_input
         )
 
-        # Start the Assistant with dynamic instructions
+        # Start the Assistant 
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=assistantFT_id,
@@ -165,7 +163,7 @@ def chatFT():
                 return jsonify({"error": "Assistant run failed"}), 500
             time.sleep(1)
 
-        # Retrieve and return the latest message from the assistant
+        # Retrieve and return the latest message 
         messages = client.beta.threads.messages.list(thread_id=thread_id)
         response = messages.data[0].content[0].text.value
 
@@ -203,7 +201,7 @@ def chatStory():
             logging.error("Missing thread_id")
             return jsonify({"error": "Missing thread_id"}), 400
 
-        # Add the calculation choice as a message (assuming user_input should be calc_choice)
+        # Add the calculation choice as a message 
         message_response = client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
@@ -294,14 +292,11 @@ def evaluate2():
             print(f"Missing data: user_answer={user_answer}, exam_question={exam_question}, thread_id={thread_id}")
             return jsonify({"error": "Missing data"}), 400
 
-        # Assume get_exam_answer is a function that retrieves the model answer based on the exam_question
         model_answer = functions.get_exam_answer(exam_question)
         print(f'Musterlösung: {model_answer}')
 
-        # Construct the instruction text for the model to evaluate the user answer based on the model answer
         input_text = f"Prüfungsfrage: {exam_question}\nMusterlösung: {model_answer}\nNutzerantwort: {user_answer}\nBitte bewerte diese Antwort auf ihre Richtigkeit und Vollständigkeit auf Basis der  Musterlösung. Die Antwort muss nicht wortwörtlich der Musterlösung entsprechen, sollte aber inhaltlich übereinstimmen und alle wesentlichen Punkte der Frage beantworten.Sprich per 'Du' anstatt zu sagen 'Der Nutzer..' sage 'Du...' "
 
-        # Create a message in the conversation thread with the user answer and the evaluation context
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
@@ -309,14 +304,13 @@ def evaluate2():
             file_ids=[muster]
         )
 
-        # Start a new assistant run to process and evaluate the user answer
+
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=assEvaStor,
             instructions=instructions.evaluation_instruction
         )
 
-        # Poll for the status of the run until it completes
         while True:
             run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
             print(f"Run status: {run_status.status}")
@@ -327,11 +321,10 @@ def evaluate2():
                 return jsonify({"error": "Assistant run failed"}), 500
             time.sleep(2)
 
-        # Retrieve the evaluation response from the assistant
+
         messages = client.beta.threads.messages.list(thread_id=thread_id)
         evaluation_response = messages.data[0].content[0].text.value
 
-        # Simplified evaluation and explanation extraction
         evaluation = "Die Antwort ist nicht korrekt."
         if "Die Antwort ist korrekt" in evaluation_response:
             evaluation = "Die Antwort ist korrekt."
@@ -340,10 +333,9 @@ def evaluate2():
             evaluation = "Die Antwort ist teilweise korrekt."
             session['score'] += 0.5
 
-        # Separate evaluation and explanation
         explanation = evaluation_response.replace(evaluation, "").strip()
 
-        # Update session counts
+
         session['count'] += 1
 
         return jsonify({
@@ -425,7 +417,7 @@ def evaluate():
             print("Unexpected evaluation response")
             return jsonify({"error": "Unexpected evaluation response", "response": evaluation_response}), 500
 
-        # Remove evaluation from response to get the explanation
+
         explanation = evaluation_response.replace(evaluation, "").strip()
 
         formatted_score = f"{session['score']:.1f}"
