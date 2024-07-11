@@ -12,12 +12,11 @@ import instructions
 
 
 
-
 # Check OpenAI version is correct
 required_version = version.parse("1.1.1")
 
 current_version = version.parse(openai.__version__)
-#OPENAI_API_KEY = secret_key
+OPENAI_API_KEY = secret
 if current_version < required_version:
   raise ValueError(f"Error: OpenAI version {openai.__version__}"
                    " is less than the required version 1.1.1")
@@ -46,7 +45,7 @@ assEvaStor = 'asst_BjtlSBuEQDMSB4wF1PSYVt7r'
 assQues = 'asst_d1jPqqA3K8xbZ8LhotKUytfX'
 vecQues = 'vs_panLZQs98el10obR2WaZFYaX'
 vecEva = 'vs_lbnMK3bQ7nRe3KaraogLWNsj'
-
+muster = 'file-mGxoLUri64NKDfY5LqureW26'
 
 lesson_file_map = {
     "Bilanzierung": "file-eZ9HL7sf0bp49XP7fjn2BQpK",
@@ -203,7 +202,7 @@ def chatStory():
             logging.error("Missing thread_id")
             return jsonify({"error": "Missing thread_id"}), 400
 
-        # Add the calculation choice as a message (assuming user_input should be calc_choice)
+
         message_response = client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
@@ -212,7 +211,6 @@ def chatStory():
         )
         print(f"Message created: {message_response}")
 
-        # Start the Assistant run
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=assEvaStor,
@@ -221,7 +219,6 @@ def chatStory():
         )
         print(f"Run created: {run}")
 
-        # Wait for the run to complete
         while True:
             run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
             print(f"Run status: {run_status.status}")
@@ -232,7 +229,6 @@ def chatStory():
                 return jsonify({"error": "Assistant run failed"}), 500
             time.sleep(1)
 
-        # Retrieve and return the latest message from the Assistant
         messages = client.beta.threads.messages.list(thread_id=thread_id)
         if not messages.data:
             logging.error("No messages returned from the assistant")
@@ -275,7 +271,6 @@ def exam():
 
 
 
-# test eva mit musterlösung statt retrieval
 @app.route('/evaluate2', methods=['POST'])
 def evaluate2():
     try:
@@ -299,21 +294,104 @@ def evaluate2():
         model_answer = functions.get_exam_answer(exam_question)
         print(f'Musterlösung: {model_answer}')
 
-        # Construct the instruction text for the model to evaluate the user answer based on the model answer
-        input_text = f"Frage: {exam_question}\nMusterlösung: {model_answer}\nNutzerantwort: {user_answer}\nBitte bewerte diese Antwort auf ihre Richtigkeit und Vollständigkeit auf Basis der  Musterlösung. Die Antwort muss nicht wortwörtlich der Musterlösung entsprechen, sollte aber inhaltlich übereinstimmen."
 
-        # Create a message in the conversation thread with the user answer and the evaluation context
+        input_text = f"Prüfungsfrage: {exam_question}\nMusterlösung: {model_answer}\nNutzerantwort: {user_answer}\nBitte bewerte diese Antwort auf ihre Richtigkeit und Vollständigkeit auf Basis der  Musterlösung. Die Antwort muss nicht wortwörtlich der Musterlösung entsprechen, sollte aber inhaltlich übereinstimmen und alle wesentlichen Punkte der Frage beantworten.Sprich per 'Du' anstatt zu sagen 'Der Nutzer..' sage 'Du...' "
+
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
-            content=input_text
+            content=input_text,
+            file_ids=[muster]
         )
 
-        # Start a new assistant run to process and evaluate the user answer
+
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=assEvaStor,
-            instructions = instructions.evaluation_instruction
+            instructions=instructions.evaluation_instruction
+        )
+
+
+        while True:
+            run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+            print(f"Run status: {run_status.status}")
+            if run_status.status == 'completed':
+                break
+            elif run_status.status == 'failed':
+                print("Assistant run failed")
+                return jsonify({"error": "Assistant run failed"}), 500
+            time.sleep(2)
+
+
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        evaluation_response = messages.data[0].content[0].text.value
+
+        evaluation = "Die Antwort ist nicht korrekt."
+        if "Die Antwort ist korrekt" in evaluation_response:
+            evaluation = "Die Antwort ist korrekt."
+            session['score'] += 1
+        elif "Die Antwort ist teilweise korrekt" in evaluation_response:
+            evaluation = "Die Antwort ist teilweise korrekt."
+            session['score'] += 0.5
+
+
+        explanation = evaluation_response.replace(evaluation, "").strip()
+
+        session['count'] += 1
+
+        return jsonify({
+            "evaluation_response": evaluation_response,
+            "evaluation": evaluation,
+            "explanation": explanation,
+            "score": f"{session['score']:.1f}",
+            "count": f"{session['count']}",
+            "tax": f"{session['tax']}"
+        }), 200
+
+    except Exception as e:
+        print(f"Server error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/evaluate3', methods=['POST'])
+def evaluate3():
+    try:
+        data = request.json
+        user_answer = data.get('user_answer')
+        exam_question = data.get('exam_question')
+        thread_id = data.get('thread_id')
+
+        # Initialize session variables if not already done
+        session['count'] = int(data.get('count', 0))
+        session['score'] = float(data.get('score', 0.0))
+        session['tax'] = int(data.get('tax', 2))
+
+        print(f"Received data: {data}")
+
+        if not user_answer or not exam_question or not thread_id:
+            print(f"Missing data: user_answer={user_answer}, exam_question={exam_question}, thread_id={thread_id}")
+            return jsonify({"error": "Missing data"}), 400
+
+
+        model_answer = functions.get_exam_answer(exam_question)
+        print(f'Musterlösung: {model_answer}')
+
+        evaluation_input_text = f"Prüfungsfrage: {exam_question}\nMusterlösung: {model_answer}\nNutzerantwort: {user_answer}\nBitte bewerte diese Antwort als a) 'K' (für korrekt), b) 'T' (für teilweise korrekt) oder c) 'F' (für falsch), indem du die Nutzerantwort mit der Musterlösung vergleichst und überlegst, ob alle relevanten Punkte benannt/erklärt wurden. Die Antwort muss nicht wortwörtlich der Musterlösung entsprechen, sollte aber inhaltlich übereinstimmen und alle  Punkte der Frage beantworten um korrekt zu sein.\n\n"
+        "hier ein beipiel für TK: Frage: Was versteht man unter dem deckungsbeitrag? Antwort: Ein Deckungsbeitrag ist der Betrag, um den der Erlös die Kosten eines Produkts übersteigt. -> Die Antwort ist TK weil sie fast richtig ist, weil nur von Kosten anstatt von Variablen Kosten gesprochen wird. Die Art der Kosten ist aber ein wesentlicher punkt, deswegen nur T"
+        #ENTWEDER als 'K' (wenn sie vollständig korrekt ist), ODER 'TK' (für teilweise korrekt, dass heißt, die Antwort enthät richtige informationen/teile der Musterlösung ist aber nicht vollständig) ODER 'F' (für falsch, also wenn die Antwort gänzlich an der Musterlösung vorbei geht), indem du die Nutzerantwort mit der Musterlösung vergleichst und überlegst, ob alle relevanten Punkte benannt/erklärt wurden. Die Antwort muss nicht wortwörtlich der Musterlösung entsprechen, sollte aber inhaltlich übereinstimmen und ALLE wesentlichen Punkte der Frage beantworten."
+        # Create a message in the conversation thread with the evaluation context
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=evaluation_input_text,
+            file_ids = [muster]
+        )
+
+ 
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assEvaStor,
+            instructions=instructions.evaluation3_instruction
         )
 
         # Poll for the status of the run until it completes
@@ -327,25 +405,57 @@ def evaluate2():
                 return jsonify({"error": "Assistant run failed"}), 500
             time.sleep(2)
 
-        # Retrieve the evaluation response from the assistant
         messages = client.beta.threads.messages.list(thread_id=thread_id)
         evaluation_response = messages.data[0].content[0].text.value
 
-        # Simplified evaluation and explanation extraction
-        evaluation = "Die Antwort ist nicht korrekt."
-        if "Die Antwort ist korrekt" in evaluation_response:
-            evaluation = "Die Antwort ist korrekt."
+        if "K" in evaluation_response:
+            evaluation = "K"
             session['score'] += 1
-        elif "Die Antwort ist teilweise korrekt" in evaluation_response:
-            evaluation = "Die Antwort ist teilweise korrekt."
+        elif "T" in evaluation_response:
+            evaluation = "T"
             session['score'] += 0.5
+        else:
+            evaluation = "F"
 
-        # Update session counts
+        print("eva: {evaluation}")
+
+
+        explanation_input_text = f"Prüfungsfrage: {exam_question}\nMusterlösung: {model_answer}\nNutzerantwort: {user_answer}\nBewertung: {evaluation}\nBitte erkläre diese Bewertung ausführlich. sage dabei nicht 'K' 'T' oder 'F' sondern sprich in ganzen worten (also die Antwort habe ich als korrekt/nicht korrekt/teilweise korrekt bewertet, da... (die abkürzungen sind nur für dich)"
+
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=explanation_input_text,
+            file_ids = [muster]
+        )
+
+
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assEvaStor,
+            instructions=instructions.explanation_instruction
+        )
+
+
+        while True:
+            run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+            print(f"Run status: {run_status.status}")
+            if run_status.status == 'completed':
+                break
+            elif run_status.status == 'failed':
+                print("Assistant run failed")
+                return jsonify({"error": "Assistant run failed"}), 500
+            time.sleep(2)
+
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        explanation_response = messages.data[0].content[0].text.value
+
+
         session['count'] += 1
 
         return jsonify({
-            "evaluation": evaluation_response,
-            "explanation": evaluation,
+            "evaluation": evaluation,
+            "explanation_response": explanation_response,
             "score": f"{session['score']:.1f}",
             "count": f"{session['count']}",
             "tax": f"{session['tax']}"
@@ -354,8 +464,7 @@ def evaluate2():
     except Exception as e:
         print(f"Server error: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=80, debug=True)
+
+
